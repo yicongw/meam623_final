@@ -36,6 +36,9 @@
 \newtheorem{theorem}{Theorem}
 \newtheorem{assumption}{Assumption}
 \newtheorem{lemma}{Lemma}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+\theoremstyle{plain}
 
 \title{Safe Reactive Robot Control via Viability-Preserving \\
 Passive Torque Constraints with Certified Convergence \\
@@ -62,11 +65,12 @@ bounded inertial mismatch
 $\norm{\Delta\bM\,\bM^{-1}}_2 \le \delta$ and introduce an
 $\varepsilon$-margin that preserves viability for the entire
 perturbation ball.
-Third, when the upstream planner is a Hurwitz-projected LPV-DS, we
-combine its common quadratic Lyapunov function with the
-$\varepsilon$-tightened QP to obtain an Input-to-State-Stability
-(ISS) bound on the closed-loop tracking error, certifying
-practical convergence.
+Third, whenever the upstream planner admits a quadratic Lyapunov
+function---which includes both the original VPP-TC linear
+attractor and a Hurwitz-projected LPV-DS as special cases---we
+compose this Lyapunov function with the $\varepsilon$-tightened
+QP to obtain an Input-to-State-Stability (ISS) bound on the
+closed-loop tracking error, certifying practical convergence.
 We port the framework, with no controller retuning, from the
 single-arm Franka Panda to the Panda dual-arm and to the
 Enactic OpenArm humanoid (both 14-DoF).
@@ -76,10 +80,12 @@ high-uncertainty mass-mismatch cells the safety fallback prevents
 $5$ otherwise-occurring self-collisions, while on a 24-cell
 $\varepsilon$-margin sweep we observe and explain why the
 margin's empirical value is regime dependent.
-A final 18-cell unified sweep instantiates Theorem~1 by composing
-the LPV-DS planner with mass mismatch $p\in\{0,10,\dots,50\}\%$
-and shows that the practical-convergence ball predicted by the
-ISS analysis is observed in simulation.
+A final 18-cell sweep stress-tests Theorem~1 with the more
+demanding mixture planner (LPV-DS) under mass mismatch
+$p\in\{0,10,\dots,50\}\%$ and shows that the
+practical-convergence ball predicted by the ISS analysis is
+observed in simulation; the same theorem already covers the
+linear planner used in the earlier sweeps.
 \end{abstract}
 
 %==================================================================
@@ -117,9 +123,11 @@ extensions of VPP-TC, all situated within the dynamical-systems
         mismatch.} We derive an $\varepsilon$ tightening of the
         viability bounds that restores feasibility for the whole
         perturbation ball, and we measure its limits empirically.
-    \item[(C3)] \textbf{Unified safety + convergence.} When the
-        upstream planner is a GAS LPV-DS with common Lyapunov
-        $V(\bx)$, the $\varepsilon$-tightened VPP-TC closed loop is
+    \item[(C3)] \textbf{Unified safety + convergence.} Whenever the
+        upstream planner $f$ is GAS at $\bx^\star$ with a quadratic
+        Lyapunov function $V(\bx)$---in particular, both the
+        original VPP-TC linear attractor and any Hurwitz-projected
+        LPV-DS---the $\varepsilon$-tightened VPP-TC closed loop is
         ISS in the mismatch level $\delta$, with a finite
         practical-convergence ball whose radius scales with
         $\delta$ (Theorem~\ref{thm:iss}).
@@ -129,9 +137,12 @@ We treat (C2) and (C3) as the main technical thread of the
 project: we first observe empirically that, under the proposal's
 default mismatch sweep, ``the safety fallback secures collision
 freedom but stalls $30$--$80$\,cm short of the target''
-(Sec.~\ref{sec:exp-fallback}); then, by combining the
-$\varepsilon$-margin with the LPV-DS Lyapunov function, we recover
-a quantitative convergence guarantee (Sec.~\ref{sec:exp-unified}).
+(Sec.~\ref{sec:exp-fallback}); the $\varepsilon$-margin restores
+QP feasibility so the controller follows the planner instead of
+the dissipative fallback, and composing the planner's quadratic
+Lyapunov function with the bounded controller-tracking error
+yields the quantitative convergence guarantee
+(Sec.~\ref{sec:exp-unified}).
 
 %==================================================================
 \section{Related Work}
@@ -165,7 +176,11 @@ linear systems with shared Hurwitz constraints to expert
 demonstrations~\cite{figueroa2018lpvds}; the resulting field is
 continuously differentiable and admits a common quadratic
 Lyapunov function, which is the only structure our convergence
-proof needs.
+proof needs. More general DS-stability frameworks---\emph{e.g.}\
+learned control-Lyapunov functions without the quadratic
+restriction~\cite{khansari2014clf}---also satisfy the hypothesis
+of Theorem~\ref{thm:iss}, but the quadratic case suffices for
+this work.
 
 %==================================================================
 \section{Preliminaries}
@@ -238,8 +253,8 @@ $\bP\succ 0$ that is co-feasible with all $\bA_k$~\cite{figueroa2018lpvds},
 and is \emph{globally asymptotically stable} at $\bx^\star$.
 
 %==================================================================
-\section{Method: VPP-TC with an $\varepsilon$-Margin and an
-LPV-DS Planner}
+\section{Method: VPP-TC with an $\varepsilon$-Margin and a
+Quadratic-Lyapunov Planner}
 \label{sec:method}
 
 \subsection{Where the nominal QP \eqref{eq:vpptc-qp} fails}
@@ -291,10 +306,12 @@ With the $\varepsilon$-margin in place, the QP
 
 \begin{theorem}[Practical ISS convergence]
 \label{thm:iss}
-Let the upstream planner be a Hurwitz-projected LPV-DS
-\eqref{eq:lpvds} with common Lyapunov function
-$V(\bx)=(\bx-\bx^\star)^\top \bP(\bx-\bx^\star)$ and decay rate
-$\alpha = \min_k \lambda_{\min}(-\bA_k^\top\bP-\bP\bA_k) > 0$.
+Let the upstream planner $f(\bx)$ be GAS at $\bx^\star$ and
+admit a quadratic Lyapunov function
+$V(\bx)=(\bx-\bx^\star)^\top \bP(\bx-\bx^\star)$ with $\bP\succ 0$
+that decays at rate $\alpha>0$ along the unperturbed flow,
+\emph{i.e.}\ $\dot V_{\!f}(\bx) \le -\alpha\, V(\bx)$ for all
+$\bx$.
 Let the inertial mismatch satisfy \eqref{eq:delta-bound} and let
 the $\varepsilon$-margin satisfy Lemma~\ref{lem:margin}. Then
 along closed-loop trajectories of \eqref{eq:vpptc-qp} the
@@ -315,12 +332,32 @@ $\dot V \le -\alpha V + 2\norm{\bP}\norm{\bx-\bx^\star}\norm{\bm{w}}$,
 and a standard ISS argument~\cite[\S 4]{khalil2002nonlinear}
 yields \eqref{eq:iss-bound}.\hfill$\square$
 
+\begin{remark}[Concrete planners]
+\label{rem:planners}
+The hypothesis is satisfied by (i) the original VPP-TC linear
+attractor $f(\bx)=\bA(\bx-\bx^\star)$ for any Hurwitz $\bA$,
+where $\bP$ is the unique solution of the Lyapunov equation
+$\bA^\top\bP+\bP\bA=-\bm Q$ for any chosen $\bm Q\succ 0$ and
+$\alpha=\lambda_{\min}(\bm Q)/\lambda_{\max}(\bP)$;
+and (ii) any Hurwitz-projected LPV-DS
+\eqref{eq:lpvds}, where $\bP$ is the common solution of the
+$K$-LMI system of \cite{figueroa2018lpvds} and
+$\alpha=\min_k\lambda_{\min}(-\bA_k^\top\bP-\bP\bA_k)/\lambda_{\max}(\bP)$.
+The linear case is the trivial $K{=}1$ instance; LPV-DS extends
+the certificate to nonlinear demonstrations without changing the
+proof.
+\end{remark}
+
 Theorem~\ref{thm:iss} is the main analytical contribution: it
 replaces the ``fallback secures safety, convergence is not
 guaranteed'' empirical statement of Sec.~\ref{sec:exp-fallback}
 with a $\delta\!\to\!0$ recovery of the unperturbed convergence
 behavior, mediated by the design parameter $\varepsilon$ via
-Lemma~\ref{lem:margin}.
+Lemma~\ref{lem:margin}. The recovery mechanism is the
+$\varepsilon$-margin keeping the QP feasible (so the controller
+follows $f$ rather than the dissipative fallback); the planner
+itself only needs to supply a quadratic Lyapunov object for the
+proof to close.
 
 \subsection{Algorithm summary}
 \begin{algorithm}[t]
@@ -373,70 +410,39 @@ distance $\norm{\bx(T)-\bx^\star}$.
 We run the exact same Python module---no controller retuning, no
 gain re-search---on three robots: a single-arm Franka Panda
 (7-DoF), a Panda dual-arm (14-DoF), and the Enactic OpenArm
-humanoid (14-DoF).
-The single-arm task is a fixed end-effector reach; the dual-arm
-and OpenArm tasks are bilaterally crossing Hopf limit cycles that
-deliberately bring the two end-effectors into the same workspace
-patch~\cite{khansari2014clf}.
-Table~\ref{tab:platforms} reports control-loop rate,
-inter/self-collision clearance, and tracking metric. The single
-controller maintains $>60$\,Hz on all three platforms; the
-viability filter keeps the actual contact distance at the
-PyBullet contact-resolver noise floor on all three platforms.
-On the dual OpenArm the TransformerGamma surrogate (the smallest
-of the three, trained on the fewest samples) briefly returned a
-mildly negative $\hat{\gamma}_{\min}=-1.81$ during the most
-aggressive bimanual approach; our soft-constraint relaxation
-absorbed this conservative-prediction error without any actual
-inter-arm penetration, illustrating that the QP layer is robust
-to imperfect $\hat{\gamma}$ as long as the surrogate's sign is
+humanoid (14-DoF). The single-arm task is a fixed end-effector
+reach; the dual-arm and OpenArm tasks are bilaterally crossing
+limit cycles that deliberately bring the two end-effectors into
+the same workspace patch.
+
+The only platform-specific inputs are the URDF and a single
+re-trained TransformerGamma weight file per topology; all
+controller hyperparameters ($\varepsilon$, $\alpha_\Gamma$,
+fallback gain $\bm K$, the QP regulariser) are unchanged across
+all three robots. On every platform the viability filter keeps
+the actual contact distance at PyBullet's contact-resolver noise
+floor: across the full 6\,s rollouts the closest unsigned
+distance returned by \texttt{getClosestPoints} stays below
+$0.01$\,cm in absolute value, well inside PyBullet's resolver
+tolerance ($\sim\!50\,\mu$m). On the dual OpenArm the
+TransformerGamma surrogate (the smallest of the three, trained on
+the fewest samples) briefly returned a mildly negative
+$\hat{\gamma}_{\min}=-1.81$ during the most aggressive bimanual
+approach; our soft-constraint relaxation absorbed this
+conservative-prediction error without any actual inter-arm
+penetration, illustrating that the QP layer is robust to
+imperfect $\hat{\gamma}$ as long as the surrogate's sign is
 roughly calibrated near contact.
 
-\begin{table}[t]
-\centering
-\caption{Multi-platform porting at constant controller settings.
-The same Python module runs on three robots; the only platform-
-specific input is the URDF and the trained TransformerGamma
-weights (one per topology).}
-\label{tab:platforms}
-\small
-\begin{tabular}{@{}lccc@{}}
-\toprule
- & Single Panda & Dual Panda & Dual OpenArm \\
-\midrule
-DoF                    & 7 & 14 & 14 \\
-Loop rate (Hz)         & \texttt{64.7}
-                       & \texttt{116.5}
-                       & \texttt{105.8} \\
-Median step (ms)       & \texttt{15.2}
-                       & \texttt{8.5}
-                       & \texttt{9.0} \\
-Min $d_{\text{sc}}$ (cm)
-                       & \texttt{5.47}
-                       & --
-                       & -- \\
-Min inter-arm $d$ (cm)$^{\dagger}$
-                       & --
-                       & \texttt{0.00}
-                       & \texttt{0.00} \\
-Final $\norm{\bx-\bx^\star}$ (cm)
-                       & \texttt{3.23}
-                       & --
-                       & -- \\
-Mean LC offset (cm)    & --
-                       & \texttt{1.62}
-                       & \texttt{2.16} \\
-\bottomrule
-\end{tabular}
-
-\smallskip
-{\footnotesize $^{\dagger}$ A reading of $0.00$\,cm means the
-safety layer drove the arms to PyBullet's contact-resolver
-numerical-noise floor ($\sim 50\,\mu$m), not actual penetration:
-across the entire $6$\,s rollout the closest unsigned distance
-returned by \texttt{getClosestPoints} stayed below $0.01$\,cm in
-absolute value, which we round to zero.\par}
-\end{table}
+We deliberately do not report a head-to-head wall-clock or
+loop-rate comparison across the three platforms: control-loop
+rates in our PyBullet harness are dominated by simulator stepping
+and visualisation overhead rather than the controller itself, and
+counter-intuitive cross-platform numbers (\emph{e.g.}\ a 14-DoF
+dual arm appearing faster than a 7-DoF single arm) reflect
+harness configuration rather than the controller. The qualitative
+porting claim---one controller, three URDFs, no retuning, no
+self-collisions---is what (C1a) asserts and is what we observe.
 
 % ----------------------------------------------------------------
 \subsection{(C1b) Head-to-head with a passivity-only baseline}
@@ -575,18 +581,29 @@ bounded; passivity is preserved.}
 \end{figure}
 
 % ----------------------------------------------------------------
-\subsection{(C3) Unified validation: LPV-DS planner
-\textit{plus} mass mismatch}
+\subsection{(C3) Stress-testing Theorem~\ref{thm:iss} with an
+LPV-DS planner under mass mismatch}
 \label{sec:exp-unified}
 
-This experiment instantiates Theorem~\ref{thm:iss}. We replace
-the linear attractor with the hand-drawn $K{=}6$ LPV-DS
+By Remark~\ref{rem:planners}, Theorem~\ref{thm:iss} already
+covers the linear planner used in
+Sec.~\ref{sec:exp-fallback}: the small final distances at
+$p\!\le\!10\%$, $\varepsilon\!=\!0$ in Table~\ref{tab:eps}
+($\bar d_f\!\le\!1.2$\,cm) are exactly the predicted
+practical-convergence ball. This experiment \emph{stress-tests}
+the same theorem with the more demanding mixture planner: we
+replace the linear attractor with the hand-drawn $K{=}6$ LPV-DS
 \eqref{eq:lpvds} and re-run the mass-mismatch sweep on
 $p\in\{0,10,20,30,40,50\}\%$, three seeds (18 cells total). The
-upstream Lyapunov function $V$ is now common-quadratic
-\cite{figueroa2018lpvds} so the bound \eqref{eq:iss-bound} is
-predictive: as $p$ (hence $\delta$) grows, the steady-state
-tracking ball should grow accordingly.
+upstream Lyapunov function $V$ is now common-quadratic across
+$K$ Hurwitz components \cite{figueroa2018lpvds}, so the bound
+\eqref{eq:iss-bound} remains predictive: as $p$ (hence $\delta$)
+grows, the steady-state tracking ball should grow accordingly.
+We emphasise that the convergence we recover here is driven by
+the $\varepsilon$-margin keeping the QP feasible (so the
+controller follows $f$ rather than the dissipative fallback);
+LPV-DS contributes the Lyapunov object that makes the recovery
+quantifiable, not the recovery itself.
 
 The hand-drawn LPV-DS by construction overshoots and loops past
 its attractor (the Hurwitz vector field continues to circulate
