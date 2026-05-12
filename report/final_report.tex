@@ -11,6 +11,7 @@
 \usepackage{booktabs}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
+\usepackage{float}
 \usepackage{hyperref}
 \usepackage{cite}
 \usepackage{xcolor}
@@ -97,18 +98,24 @@ properties \emph{simultaneously}: \emph{passivity}, so that energy
 is strictly dissipated in unmodeled contacts, and \emph{viability},
 so that hard constraints (joint limits, self- and external
 collisions) are never violated.  Classical passive DS-tracking
-controllers~\cite{kronander2016passive} guarantee the former but
-are agnostic to the latter; CPIC~\cite{zhang2024cpic} adds
-neural-network Control Barrier Function (CBF) constraints to a
-passive controller, but the resulting QP can become infeasible
-under hard-constraint conflicts and depends on second-order
-derivatives of neural barriers, which slows the loop. The recently
-proposed Viability-Preserving Passive Torque Control
-(VPP-TC)~\cite{zhang2025vpptc} sidesteps both issues by
+controllers~\cite{kronander2016passive} guarantee the former by
+closing an energy-tank loop around the DS-driven impedance
+controller, but they treat safety as the responsibility of the
+upstream DS shape; constraint enforcement is not part of the
+controller. CPIC~\cite{zhang2024cpic} brings constraints into the
+loop by constraining a DS-based impedance law with a
+\emph{relaxed hierarchical CBF--QP} subject to multiple
+(possibly contradicting) constraints derived from data-driven $C^2$
+collision-boundary functions, and is ``passive only when feasible'';
+in the contradictory regime the slack relaxation can momentarily
+sacrifice strict passivity. The recently proposed
+Viability-Preserving Passive Torque Control
+(VPP-TC)~\cite{zhang2025vpptc} keeps both properties strict by
 pre-computing analytical or learned viability sets in the
 position-velocity state space and converting their boundaries into
 cheap acceleration-level (and hence torque-level) bounds inside a
-small QP.
+small QP, with a strictly dissipative fallback whenever those
+bounds become infeasible.
 
 \paragraph*{Contributions} This project investigates three
 extensions of VPP-TC, all situated within the dynamical-systems
@@ -147,29 +154,41 @@ yields the quantitative convergence guarantee
 %==================================================================
 \section{Related Work}
 
-\paragraph*{Passive DS tracking}  Kronander
-et al.~\cite{kronander2016passive} expose a
-DS as the desired behavior and use a passive impedance controller
-to track it; safety is enforced by hand-shaped DS modulation, not by
-hard constraints.
+\paragraph*{Passive DS tracking}  Kronander and
+Billard~\cite{kronander2016passive} close an energy-tank loop
+around a DS-tracking impedance controller so that the closed loop
+is passive even when the DS is non-conservative. The architecture
+is concerned with passivity, not with hard kinematic or
+self-collision constraints; the safety profile of the resulting
+behavior is inherited entirely from the DS that the user supplies.
 
 \paragraph*{CBF and viability}  Ames~\cite{ames2019cbf} popularized
 CBF-QPs that enforce forward invariance of a safe set. Viability
 theory~\cite{aubin1991viability} is the larger framework that asks
 which states admit a control trajectory keeping the system inside
 the constraint set indefinitely; CBFs are essentially a smooth
-sub-class of viability boundaries. Recent work has used learned
-neural-network safety predictors as viability
-oracles~\cite{so2024neuralcbf}, which is the route VPP-TC follows.
+sub-class of viability boundaries. A complementary line of work
+learns CBFs from data: So et al.~\cite{so2024neuralcbf} construct
+a Policy Neural CBF (PNCBF) by learning the value function of a
+nominal policy under the maximum-over-time cost, which is then
+used as a CBF for systems with high relative degree and input
+constraints. VPP-TC takes a different route: rather than fitting a
+smooth CBF, it learns a binary self-collision predictor
+(TransformerGamma) and converts its level-set boundary directly
+into an acceleration-level viability bound.
 
 \paragraph*{Passive Interactive Control with hard constraints}
-CPIC~\cite{zhang2024cpic} composes a tank-based passivity layer
-with an HJ-reachability viability function. The two layers can
-disagree, which is resolved by relaxing the safety constraint with
-a slack variable; this can compromise safety in pathological
-cases. VPP-TC instead bakes the safety constraint into a
-torque-passive QP whose feasibility we control via the
-$\varepsilon$-margin.
+CPIC~\cite{zhang2024cpic} constrains a DS-based impedance law with
+a relaxed hierarchical CBF--QP subject to multiple, possibly
+contradicting, constraints derived from data-driven $C^2$
+self- and external-collision boundary functions; the controller is
+``passive only when feasible'', i.e.\ strict passivity may be
+sacrificed via slack when constraints conflict. VPP-TC instead
+bakes the safety constraint into a torque-passive QP and falls
+back to a strictly dissipative brake \eqref{eq:fallback} whenever
+the constraints become infeasible; the
+$\varepsilon$-margin~(\S\ref{sec:eps-margin}) is what we tune to
+keep that fallback rare under inertial mismatch.
 
 \paragraph*{LPV-DS planning}  LPV-DS planners fit a mixture of
 linear systems with shared Hurwitz constraints to expert
@@ -329,7 +348,7 @@ is $\dot{\bx} = f(\bx) + \bm{w}(\bq,\bdq,\delta)$ with
 $\norm{\bm{w}}\le c_3'\delta$.
 Differentiating $V$ along the perturbed flow,
 $\dot V \le -\alpha V + 2\norm{\bP}\norm{\bx-\bx^\star}\norm{\bm{w}}$,
-and a standard ISS argument~\cite[\S 4]{khalil2002nonlinear}
+and a standard ISS argument~\cite[\S 4.9]{khalil2002nonlinear}
 yields \eqref{eq:iss-bound}.\hfill$\square$
 
 \begin{remark}[Concrete planners]
@@ -360,8 +379,22 @@ itself only needs to supply a quadratic Lyapunov object for the
 proof to close.
 
 \subsection{Algorithm summary}
-\begin{algorithm}[t]
-\caption{VPP-TC with $\varepsilon$-margin and LPV-DS planner}
+Algorithm~\ref{alg:vpptc} packages the components of
+Sec.~\ref{sec:method} into a single per-step routine. Line~2 is
+the only call into the upstream DS, which is the
+planner-agnostic interface from Contribution~(C1):
+swapping the linear attractor for the LPV-DS leaves
+lines~3--7 unchanged. Line~5 implements the
+$\varepsilon$-tightening~\eqref{eq:eps-bounds} of
+Contribution~(C2), and the QP/fallback split on line~6 is the
+mechanism that makes Theorem~\ref{thm:iss} of Contribution~(C3)
+operational: when the $\varepsilon$-margin keeps the QP feasible
+the controller follows the planner and the ISS bound applies; when
+it does not, \eqref{eq:fallback} preserves passivity at the cost
+of progress.
+
+\begin{algorithm}[H]
+\caption{VPP-TC with $\varepsilon$-margin and quadratic-Lyapunov planner}
 \label{alg:vpptc}
 \begin{algorithmic}[1]
 \Require nominal $\bM,\bh$; LPV-DS $\{\bA_k,\bm{b}_k,\gamma_k\}$,
