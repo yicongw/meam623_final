@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+build/
+dist/
+venv/
+.venv/
+
+# Per-run simulation logs (kept summaries below in output/)
+output/run_*.csv
+output/dual_run_*.csv
+output/openarm_dual_run_*.csv
+output/*_dist_*.csv
+output/sweep_*.csv
+output/proposal_mismatch*.csv
+output/edge_search.csv
+output/explore_eps.csv
+output/compare_summary.csv
+output/fallback_compare.csv
+output/fallback_robustness.csv
+output/high_uncertainty.csv
+output/probe_summary.csv
+
+# Poster artefacts (the final report is the deliverable)
+output/poster_*
+output/*_preview.*
+output/*_check.*
+output/myplot*.png
+
+# Large vendored OpenArm meshes (download from upstream, see README)
+assets/urdf/openarm_description/
+
+# Large external library — install instructions in README
+third_party/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# LaTeX build products
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.bbl
+report/*.blg
+report/*.synctex.gz
+report/*.fdb_latexmk
+report/*.fls
+report/final_report.pdf

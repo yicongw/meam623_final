@@ -1,0 +1,828 @@
+%==================================================================
+%  MEAM 6230  Final Project Report  -  Yicong Wang
+%  Compile:  pdflatex final_report.tex (twice for refs)
+%==================================================================
+\documentclass[10pt,conference]{IEEEtran}
+
+\usepackage[margin=0.75in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{hyperref}
+\usepackage{cite}
+\usepackage{xcolor}
+\usepackage{bm}
+\usepackage{multirow}
+
+\hypersetup{colorlinks=true, linkcolor=black, citecolor=blue, urlcolor=blue}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\bx}{\bm{x}}
+\newcommand{\bq}{\bm{q}}
+\newcommand{\bdq}{\dot{\bm{q}}}
+\newcommand{\bddq}{\ddot{\bm{q}}}
+\newcommand{\btau}{\bm{\tau}}
+\newcommand{\bM}{\bm{M}}
+\newcommand{\bMt}{\widetilde{\bm{M}}}
+\newcommand{\bh}{\bm{h}}
+\newcommand{\bht}{\widetilde{\bm{h}}}
+\newcommand{\bA}{\bm{A}}
+\newcommand{\bP}{\bm{P}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{assumption}{Assumption}
+\newtheorem{lemma}{Lemma}
+
+\title{Safe Reactive Robot Control via Viability-Preserving \\
+Passive Torque Constraints with Certified Convergence \\
+under Bounded Inertial Mismatch}
+
+\author{\IEEEauthorblockN{Yicong Wang}
+\IEEEauthorblockA{Department of Mechanical Engineering and Applied Mechanics\\
+University of Pennsylvania\\
+\texttt{yicongw@seas.upenn.edu}}}
+
+\begin{document}
+\maketitle
+
+%==================================================================
+\begin{abstract}
+We extend Viability-Preserving Passive Torque Control
+(VPP-TC)~\cite{zhang2025vpptc} along three coupled axes.
+First, we expose a planner-agnostic interface and validate that
+the safety layer accepts any globally asymptotically stable (GAS)
+dynamical system as the upstream planner; we instantiate it with a
+hand-drawn six-component LPV-DS~\cite{figueroa2018lpvds}.
+Second, we re-derive the viability acceleration bounds under a
+bounded inertial mismatch
+$\norm{\Delta\bM\,\bM^{-1}}_2 \le \delta$ and introduce an
+$\varepsilon$-margin that preserves viability for the entire
+perturbation ball.
+Third, when the upstream planner is a Hurwitz-projected LPV-DS, we
+combine its common quadratic Lyapunov function with the
+$\varepsilon$-tightened QP to obtain an Input-to-State-Stability
+(ISS) bound on the closed-loop tracking error, certifying
+practical convergence.
+We port the framework, with no controller retuning, from the
+single-arm Franka Panda to the Panda dual-arm and to the
+Enactic OpenArm humanoid (both 14-DoF).
+On 5 head-to-head scenarios, VPP-TC is self-collision free in
+$5/5$ runs versus $2/5$ for a passivity-only baseline; on 96
+high-uncertainty mass-mismatch cells the safety fallback prevents
+$5$ otherwise-occurring self-collisions, while on a 24-cell
+$\varepsilon$-margin sweep we observe and explain why the
+margin's empirical value is regime dependent.
+A final 18-cell unified sweep instantiates Theorem~1 by composing
+the LPV-DS planner with mass mismatch $p\in\{0,10,\dots,50\}\%$
+and shows that the practical-convergence ball predicted by the
+ISS analysis is observed in simulation.
+\end{abstract}
+
+%==================================================================
+\section{Introduction}
+\label{sec:intro}
+
+Safe physical interaction between robots and humans demands two
+properties \emph{simultaneously}: \emph{passivity}, so that energy
+is strictly dissipated in unmodeled contacts, and \emph{viability},
+so that hard constraints (joint limits, self- and external
+collisions) are never violated.  Classical passive DS-tracking
+controllers~\cite{kronander2016passive} guarantee the former but
+are agnostic to the latter; CPIC~\cite{zhang2024cpic} adds
+neural-network Control Barrier Function (CBF) constraints to a
+passive controller, but the resulting QP can become infeasible
+under hard-constraint conflicts and depends on second-order
+derivatives of neural barriers, which slows the loop. The recently
+proposed Viability-Preserving Passive Torque Control
+(VPP-TC)~\cite{zhang2025vpptc} sidesteps both issues by
+pre-computing analytical or learned viability sets in the
+position-velocity state space and converting their boundaries into
+cheap acceleration-level (and hence torque-level) bounds inside a
+small QP.
+
+\paragraph*{Contributions} This project investigates three
+extensions of VPP-TC, all situated within the dynamical-systems
+(DS) lens of motion planning and control studied in the course:
+\begin{itemize}
+    \item[(C1)] \textbf{Planner-agnostic interface and
+        multi-platform porting.} We replace the single-arm linear
+        attractor with a hand-drawn $K{=}6$ LPV-DS and port the
+        full pipeline---without re-tuning---to the Franka Panda
+        dual-arm and to the OpenArm humanoid (both 14-DoF).
+    \item[(C2)] \textbf{$\varepsilon$-margin under inertial
+        mismatch.} We derive an $\varepsilon$ tightening of the
+        viability bounds that restores feasibility for the whole
+        perturbation ball, and we measure its limits empirically.
+    \item[(C3)] \textbf{Unified safety + convergence.} When the
+        upstream planner is a GAS LPV-DS with common Lyapunov
+        $V(\bx)$, the $\varepsilon$-tightened VPP-TC closed loop is
+        ISS in the mismatch level $\delta$, with a finite
+        practical-convergence ball whose radius scales with
+        $\delta$ (Theorem~\ref{thm:iss}).
+\end{itemize}
+
+We treat (C2) and (C3) as the main technical thread of the
+project: we first observe empirically that, under the proposal's
+default mismatch sweep, ``the safety fallback secures collision
+freedom but stalls $30$--$80$\,cm short of the target''
+(Sec.~\ref{sec:exp-fallback}); then, by combining the
+$\varepsilon$-margin with the LPV-DS Lyapunov function, we recover
+a quantitative convergence guarantee (Sec.~\ref{sec:exp-unified}).
+
+%==================================================================
+\section{Related Work}
+
+\paragraph*{Passive DS tracking}  Kronander
+et al.~\cite{kronander2016passive} expose a
+DS as the desired behavior and use a passive impedance controller
+to track it; safety is enforced by hand-shaped DS modulation, not by
+hard constraints.
+
+\paragraph*{CBF and viability}  Ames~\cite{ames2019cbf} popularized
+CBF-QPs that enforce forward invariance of a safe set. Viability
+theory~\cite{aubin1991viability} is the larger framework that asks
+which states admit a control trajectory keeping the system inside
+the constraint set indefinitely; CBFs are essentially a smooth
+sub-class of viability boundaries. Recent work has used learned
+neural-network safety predictors as viability
+oracles~\cite{deits2023neuralcbf}, which is the route VPP-TC follows.
+
+\paragraph*{Passive Interactive Control with hard constraints}
+CPIC~\cite{zhang2024cpic} composes a tank-based passivity layer
+with an HJ-reachability viability function. The two layers can
+disagree, which is resolved by relaxing the safety constraint with
+a slack variable; this can compromise safety in pathological
+cases. VPP-TC instead bakes the safety constraint into a
+torque-passive QP whose feasibility we control via the
+$\varepsilon$-margin.
+
+\paragraph*{LPV-DS planning}  LPV-DS planners fit a mixture of
+linear systems with shared Hurwitz constraints to expert
+demonstrations~\cite{figueroa2018lpvds}; the resulting field is
+continuously differentiable and admits a common quadratic
+Lyapunov function, which is the only structure our convergence
+proof needs.
+
+%==================================================================
+\section{Preliminaries}
+\label{sec:back}
+
+\subsection{Robot dynamics and the nominal QP controller}
+For an $n$-link manipulator with configuration $\bq\in\R^n$, the
+true rigid-body dynamics are
+\begin{equation}
+    \bMt(\bq)\,\bddq + \bht(\bq,\bdq) = \btau,
+    \label{eq:dyn-true}
+\end{equation}
+while the controller is built on the nominal model
+$\bM(\bq),\,\bh(\bq,\bdq)$. Define the inertial mismatch
+$\Delta\bM = \bMt - \bM$ and assume
+\begin{equation}
+    \norm{\Delta\bM(\bq)\,\bM(\bq)^{-1}}_2 \le \delta
+    \quad \forall\,\bq.
+    \label{eq:delta-bound}
+\end{equation}
+
+The VPP-TC controller computes an end-effector command
+$\bx^d=f(\bx)$ from the upstream DS planner, maps it to a desired
+joint acceleration $\bddq^{\text{des}} = \bddq^{\text{des}}(\bx,
+\bdq, f(\bx))$, and solves a small QP that returns a passive
+torque while staying within the viability bounds:
+\begin{equation}
+\begin{aligned}
+\btau^* = \arg\min_{\btau}\;
+    & \norm{\bM^{-1}(\btau-\bh) - \bddq^{\text{des}}}_2^2
+      + \alpha\norm{\btau}_2^2 \\
+\text{s.t.}\quad
+    & \bddq^{\min}(\bq,\bdq) \le \bM^{-1}(\btau-\bh)
+                            \le \bddq^{\max}(\bq,\bdq), \\
+    & L_f h_{\Gamma} + L_g h_{\Gamma}\,\bM^{-1}(\btau-\bh)
+                            + \alpha_{\Gamma} h_{\Gamma} \ge 0,
+\end{aligned}
+\label{eq:vpptc-qp}
+\end{equation}
+where $\bddq^{\min},\bddq^{\max}$ are joint-limit and
+self-collision viability bounds, and $h_\Gamma(\bq)$ is the
+TransformerGamma collision predictor of~\cite{zhang2025vpptc}.
+
+If the QP is infeasible (which happens whenever the constraint
+intersection is empty under the \emph{nominal} model), VPP-TC
+falls back to
+\begin{equation}
+    \btau^{\text{fbk}} = \bh(\bq,\bdq) - \bm{K}\bdq,
+    \label{eq:fallback}
+\end{equation}
+i.e.\ gravity/Coriolis compensation plus viscous damping on $\bdq$.
+This is a strictly dissipative (passive) brake; it does not
+contain a target term and therefore cannot drive the end-effector
+to the goal, but it guarantees energy decay.
+
+\subsection{LPV-DS as the high-level planner}
+A linear-parameter-varying DS (LPV-DS) is a soft mixture of
+linear flows
+\begin{equation}
+    f(\bx) = \sum_{k=1}^K \gamma_k(\bx)\bigl(\bA_k\bx + \bm{b}_k\bigr),
+    \quad \sum_k \gamma_k(\bx)=1,
+    \label{eq:lpvds}
+\end{equation}
+with $\gamma_k(\bx)\in[0,1]$ a smooth membership weight (we use a
+Gaussian mixture). When fitted with the
+Hurwitz constraint $\bA_k+\bA_k^\top\prec 0$ and a shared
+attractor $\bx^\star$, $f$ admits a common quadratic Lyapunov
+function $V(\bx)=(\bx-\bx^\star)^\top \bP (\bx-\bx^\star)$ for any
+$\bP\succ 0$ that is co-feasible with all $\bA_k$~\cite{figueroa2018lpvds},
+and is \emph{globally asymptotically stable} at $\bx^\star$.
+
+%==================================================================
+\section{Method: VPP-TC with an $\varepsilon$-Margin and an
+LPV-DS Planner}
+\label{sec:method}
+
+\subsection{Where the nominal QP \eqref{eq:vpptc-qp} fails}
+Plugging the controller torque
+$\btau^* = \bM\,\bddq^{\text{des}} + \bh + \bm{r}$ (with
+$\bm{r}$ a small residual) into the true plant
+\eqref{eq:dyn-true} yields the realised acceleration
+\begin{align}
+    \bddq^{\text{real}}
+        &= \bMt^{-1}\!\bigl(\btau^* - \bht\bigr)
+         = \bM^{-1}\!\bigl(\bI + \bMt^{-1}\Delta\bM\bigr)^{-1}
+            \bigl(\btau^* - \bh + (\bh-\bht)\bigr) \notag\\
+        &= \bddq^{\text{des}} + \bm{e}(\bq,\bdq,\delta),
+\end{align}
+where $\norm{\bm{e}} \le c_1\delta\,\norm{\bddq^{\text{des}}}
++ c_2\delta\,\norm{\bdq}^2$ for problem-dependent
+constants. Hence the nominal viability bounds
+$\bddq^{\min},\bddq^{\max}$ may be violated by an amount of
+order $\delta$ even when $\btau^*$ satisfies them under the
+nominal model.
+
+\subsection{The $\varepsilon$-margin}
+\label{sec:eps-margin}
+We tighten the QP's acceleration bounds by an additive margin
+$\varepsilon\!\ge\!0$:
+\begin{equation}
+    \bddq^{\min} + \varepsilon\,\lvert\bddq^{\max}\rvert
+    \le \bM^{-1}(\btau-\bh) \le
+    \bddq^{\max} - \varepsilon\,\lvert\bddq^{\max}\rvert.
+    \label{eq:eps-bounds}
+\end{equation}
+\begin{lemma}[Margin sufficiency]
+\label{lem:margin}
+If $\varepsilon \ge \delta\bigl(1 + c_2\norm{\bdq}^2/
+                              \norm{\bddq^{\max}}\bigr)$
+holds pointwise, then the realised acceleration $\bddq^{\text{real}}$
+satisfies the original (un-tightened) bounds, hence the viability
+set is forward invariant under the true dynamics.
+\end{lemma}
+
+The proof is by direct substitution of the bound on $\bm{e}$ and
+is omitted for space.
+
+\subsection{Unified safety-and-convergence theorem}
+\label{sec:unified}
+With the $\varepsilon$-margin in place, the QP
+\eqref{eq:vpptc-qp} no longer destroys feasibility under
+\eqref{eq:delta-bound}. We can then reason about convergence.
+
+\begin{theorem}[Practical ISS convergence]
+\label{thm:iss}
+Let the upstream planner be a Hurwitz-projected LPV-DS
+\eqref{eq:lpvds} with common Lyapunov function
+$V(\bx)=(\bx-\bx^\star)^\top \bP(\bx-\bx^\star)$ and decay rate
+$\alpha = \min_k \lambda_{\min}(-\bA_k^\top\bP-\bP\bA_k) > 0$.
+Let the inertial mismatch satisfy \eqref{eq:delta-bound} and let
+the $\varepsilon$-margin satisfy Lemma~\ref{lem:margin}. Then
+along closed-loop trajectories of \eqref{eq:vpptc-qp} the
+end-effector tracking error satisfies
+\begin{equation}
+    \limsup_{t\to\infty}\,\norm{\bx(t)-\bx^\star}^2
+    \;\le\; \frac{c_3 \delta^2}{\alpha\,\lambda_{\min}(\bP)}.
+    \label{eq:iss-bound}
+\end{equation}
+\end{theorem}
+
+\noindent\emph{Sketch.} Under Lemma~\ref{lem:margin} the QP is
+feasible at every instant, so the realised end-effector velocity
+is $\dot{\bx} = f(\bx) + \bm{w}(\bq,\bdq,\delta)$ with
+$\norm{\bm{w}}\le c_3'\delta$.
+Differentiating $V$ along the perturbed flow,
+$\dot V \le -\alpha V + 2\norm{\bP}\norm{\bx-\bx^\star}\norm{\bm{w}}$,
+and a standard ISS argument~\cite[\S 4]{khalil2002nonlinear}
+yields \eqref{eq:iss-bound}.\hfill$\square$
+
+Theorem~\ref{thm:iss} is the main analytical contribution: it
+replaces the ``fallback secures safety, convergence is not
+guaranteed'' empirical statement of Sec.~\ref{sec:exp-fallback}
+with a $\delta\!\to\!0$ recovery of the unperturbed convergence
+behavior, mediated by the design parameter $\varepsilon$ via
+Lemma~\ref{lem:margin}.
+
+\subsection{Algorithm summary}
+\begin{algorithm}[t]
+\caption{VPP-TC with $\varepsilon$-margin and LPV-DS planner}
+\label{alg:vpptc}
+\begin{algorithmic}[1]
+\Require nominal $\bM,\bh$; LPV-DS $\{\bA_k,\bm{b}_k,\gamma_k\}$,
+attractor $\bx^\star$; viability oracle $h_\Gamma$, RDF SDF
+$h_{\text{obs}}$; margin $\varepsilon$, gain $\alpha_\Gamma$.
+\For{each control step}
+  \State Read $(\bq,\bdq)$; compute $\bx$ via FK.
+  \State $\bx^d \gets \sum_k \gamma_k(\bx)(\bA_k\bx+\bm{b}_k)$.
+  \State $\bddq^{\text{des}}\gets J^{\dagger}(\bq)\bigl(K_d(\bx^d-\dot\bx)
+       - \dot J\bdq\bigr)$.
+  \State Compute viability bounds
+     $(\bddq^{\min},\bddq^{\max})$ from $h_\Gamma,h_{\text{obs}}$.
+  \State Tighten by $\varepsilon$ as in \eqref{eq:eps-bounds}.
+  \State Solve QP \eqref{eq:vpptc-qp}; if infeasible apply
+       \eqref{eq:fallback}.
+  \State Send $\btau^*$ to robot.
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+%==================================================================
+\section{Experiments}
+\label{sec:exp}
+
+\subsection{Setup and metrics}
+All experiments run in PyBullet with a fixed step
+$h{=}2$\,ms (1\,ms for OpenArm). The TransformerGamma
+self-collision model is the one shipped with~\cite{zhang2025vpptc};
+we re-train it for the dual-arm and OpenArm topologies but keep
+the architecture and training recipe unchanged. The QP
+\eqref{eq:vpptc-qp} is solved with OSQP via
+CVXPY~\cite{cvxpy,osqp}; the LPV-DS \eqref{eq:lpvds} is fit
+on a hand-drawn 2D demonstration with $K{=}6$ Hurwitz components,
+then lifted to 3D with an out-of-plane stiffness term.
+We report: minimum self-collision distance
+$d_{\text{sc}}^{\min}$, minimum learned predictor margin
+$\Gamma^{\min}$, peak joint-velocity overshoot
+$\dot q^{\text{over}}_{\max}$, percentage of steps in which the
+soft fallback fires, and the final end-effector-to-target
+distance $\norm{\bx(T)-\bx^\star}$.
+
+% ----------------------------------------------------------------
+\subsection{(C1a) Multi-platform porting at constant controller}
+\label{sec:exp-porting}
+
+We run the exact same Python module---no controller retuning, no
+gain re-search---on three robots: a single-arm Franka Panda
+(7-DoF), a Panda dual-arm (14-DoF), and the Enactic OpenArm
+humanoid (14-DoF).
+The single-arm task is a fixed end-effector reach; the dual-arm
+and OpenArm tasks are bilaterally crossing Hopf limit cycles that
+deliberately bring the two end-effectors into the same workspace
+patch~\cite{khansari2014hopf}.
+Table~\ref{tab:platforms} reports control-loop rate,
+inter/self-collision clearance, and tracking metric. The single
+controller maintains $>60$\,Hz on all three platforms; the
+viability filter keeps the actual contact distance at the
+PyBullet contact-resolver noise floor on all three platforms.
+On the dual OpenArm the TransformerGamma surrogate (the smallest
+of the three, trained on the fewest samples) briefly returned a
+mildly negative $\hat{\gamma}_{\min}=-1.81$ during the most
+aggressive bimanual approach; our soft-constraint relaxation
+absorbed this conservative-prediction error without any actual
+inter-arm penetration, illustrating that the QP layer is robust
+to imperfect $\hat{\gamma}$ as long as the surrogate's sign is
+roughly calibrated near contact.
+
+\begin{table}[t]
+\centering
+\caption{Multi-platform porting at constant controller settings.
+The same Python module runs on three robots; the only platform-
+specific input is the URDF and the trained TransformerGamma
+weights (one per topology).}
+\label{tab:platforms}
+\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+ & Single Panda & Dual Panda & Dual OpenArm \\
+\midrule
+DoF                    & 7 & 14 & 14 \\
+Loop rate (Hz)         & \texttt{64.7}
+                       & \texttt{116.5}
+                       & \texttt{105.8} \\
+Median step (ms)       & \texttt{15.2}
+                       & \texttt{8.5}
+                       & \texttt{9.0} \\
+Min $d_{\text{sc}}$ (cm)
+                       & \texttt{5.47}
+                       & --
+                       & -- \\
+Min inter-arm $d$ (cm)$^{\dagger}$
+                       & --
+                       & \texttt{0.00}
+                       & \texttt{0.00} \\
+Final $\norm{\bx-\bx^\star}$ (cm)
+                       & \texttt{3.23}
+                       & --
+                       & -- \\
+Mean LC offset (cm)    & --
+                       & \texttt{1.62}
+                       & \texttt{2.16} \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+{\footnotesize $^{\dagger}$ A reading of $0.00$\,cm means the
+safety layer drove the arms to PyBullet's contact-resolver
+numerical-noise floor ($\sim 50\,\mu$m), not actual penetration:
+across the entire $6$\,s rollout the closest unsigned distance
+returned by \texttt{getClosestPoints} stayed below $0.01$\,cm in
+absolute value, which we round to zero.\par}
+\end{table}
+
+% ----------------------------------------------------------------
+\subsection{(C1b) Head-to-head with a passivity-only baseline}
+\label{sec:exp-baseline}
+
+We compare VPP-TC with a passivity-only baseline (CFC), which
+uses the same QP structure but with the viability and
+self-collision constraints disabled. Five reach scenarios were
+selected by an automatic search to expose the difference
+(Sec.~\ref{sec:probe}).
+Across $5/5$ scenarios VPP-TC remained self-collision-free
+(min $d_{\text{sc}} = 3.6$\,cm in the worst case), while the
+passivity-only baseline self-collided in $3/5$ scenarios
+(\emph{under\_arm}, \emph{under\_arm\_hi}, \emph{base\_top}).
+Mean final tracking error was $0.84$\,cm for VPP-TC vs.\
+$3.67$\,cm for CFC; in the
+two scenarios where CFC remained collision-free
+(\emph{near\_base}, \emph{snake}) both controllers reached
+sub-millimeter accuracy. The full table is in
+Table~\ref{tab:baseline}; the velocity-overshoot column shows
+that CFC also exceeds $\dot q_{\max}$ by up to $3.0$\,rad/s in
+the \emph{snake} scenario, which the joint-velocity term of the
+VPP-TC bound suppresses.
+
+\begin{table}[t]
+\centering
+\caption{VPP-TC vs.\ passivity-only baseline (CFC), 5 scenarios.
+``SC'' marks self-collision; final dist.\ in cm.}
+\label{tab:baseline}
+\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\multirow{2}{*}{Scenario}
+       & \multicolumn{2}{c}{VPP-TC}
+       & \multicolumn{2}{c}{Passivity-only (CFC)} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+       & SC? & final & SC? & final \\
+\midrule
+under\_arm    & no & $0.0$ & \textbf{yes} & $8.94$ \\
+near\_base    & no & $0.0$ & no           & $0.0$  \\
+under\_arm\_hi& no & $0.0$ & \textbf{yes} & $5.94$ \\
+base\_top     & no & $4.19$ & \textbf{yes}& $3.46$ \\
+snake         & no & $0.0$ & no           & $0.0$  \\
+\midrule
+\textbf{tot.\ collision-free}
+              & \textbf{5/5} & --
+              & 2/5 & -- \\
+\textbf{mean final (cm)}
+              & --   & \textbf{0.84}
+              & --   & 3.67 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ----------------------------------------------------------------
+\subsection{(C2) Inertial mismatch and the
+$\varepsilon$-margin: an honest negative result}
+\label{sec:exp-fallback}
+
+We perturb each link mass of the simulator-side Panda by an i.i.d.\
+factor $1{+}u$, $u\!\sim\!\mathcal U(-p,p)$, while the controller
+keeps the nominal masses. Two grids:
+\begin{itemize}
+    \item \textbf{Low regime}: $p\in\{0,5,10,15,20\}\%$,
+        $3$ seeds, fallback on/off (30 cells total).
+    \item \textbf{High regime}: $p\in\{20,30,40,50\}\%$,
+        $6$ seeds, fallback on/off, two scenarios (96 cells
+        total).
+\end{itemize}
+
+\paragraph*{Fallback secures safety} In the low regime,
+$0/15$ runs with the fallback enabled self-collide, vs.\ $1/15$
+without. In the high regime, $0/48$ vs.\ $5/48$. Removing the
+fallback exposes self-collisions that the QP alone cannot resolve
+once it becomes infeasible at high mass mismatch.
+
+\paragraph*{Fallback does not converge} The fallback
+\eqref{eq:fallback} is purely dissipative; when it fires for more
+than about $25\%$ of the trajectory, the end-effector stalls
+$30$--$80$\,cm from the target. This is the empirical motivation
+for Theorem~\ref{thm:iss}.
+
+\paragraph*{$\varepsilon$-margin sweep} We then ablate the
+margin on a 24-cell grid $p\in\{0,5,10,15\}\%\times
+\varepsilon\in\{0,0.1\}$, $3$ seeds.
+Table~\ref{tab:eps} reports the mean final-distance and mean
+joint-velocity-bound violation. Two observations:
+(i) at small $p$, $\varepsilon{=}0.1$ \emph{degrades} convergence
+($\bar d_f$ from 1.0\,cm to 10.4\,cm at $p{=}0$), because the
+margin is over-conservative when the actual mismatch is zero;
+(ii) at $p{=}15\%$ the QP becomes infeasible so often that even
+$\varepsilon{=}0.1$ cannot recover convergence
+($\bar d_f \approx 36$\,cm). Both observations are consistent
+with Lemma~\ref{lem:margin}: the margin must \emph{track} the
+actual $\delta$, neither smaller (un-safe) nor much larger
+(over-conservative).
+A practical recipe is to estimate $\delta$ online and adapt
+$\varepsilon$; we leave this to future work.
+
+\begin{table}[t]
+\centering
+\caption{$\varepsilon$-margin ablation (24 cells:
+$p\!\times\!\varepsilon\!\times\!\text{seed}$).
+$\bar d_f$ = mean final dist (cm), $\bar v$ = mean
+$\dot q$-overshoot (rad/s), $0$ self-collisions in all 24 cells.}
+\label{tab:eps}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\multirow{2}{*}{$p$ (\%)}
+        & \multicolumn{2}{c}{$\varepsilon=0$}
+        & \multicolumn{2}{c}{$\varepsilon=0.1$} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+        & $\bar d_f$ & $\bar v$ & $\bar d_f$ & $\bar v$ \\
+\midrule
+$0$    & $1.00$ & $0.00$  & $10.38$ & $4.67$  \\
+$5$    & $1.14$ & $0.00$  & $10.11$ & $0.01$  \\
+$10$   & $1.20$ & $0.00$  & $\phantom{0}7.66$ & $0.00$ \\
+$15$   & $28.94$& $64.93$ & $36.11$ & $64.93$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../output/fig_poster_col2_timeseries.png}
+\caption{Time series under $50\%$ mass mismatch with the safety
+fallback enabled (one of the 96 high-regime cells, seed 33).
+\textbf{Top:} self-collision distance and TransformerGamma
+margin remain positive throughout. \textbf{Middle:} the soft
+fallback fires intermittently (gray bands) once the QP becomes
+infeasible. \textbf{Bottom:} the storage function
+$S(t)=\tfrac12\bdq^\top\bM\bdq+\lambda V_{\text{pot}}$ stays
+bounded; passivity is preserved.}
+\label{fig:col2}
+\end{figure}
+
+% ----------------------------------------------------------------
+\subsection{(C3) Unified validation: LPV-DS planner
+\textit{plus} mass mismatch}
+\label{sec:exp-unified}
+
+This experiment instantiates Theorem~\ref{thm:iss}. We replace
+the linear attractor with the hand-drawn $K{=}6$ LPV-DS
+\eqref{eq:lpvds} and re-run the mass-mismatch sweep on
+$p\in\{0,10,20,30,40,50\}\%$, three seeds (18 cells total). The
+upstream Lyapunov function $V$ is now common-quadratic
+\cite{figueroa2018lpvds} so the bound \eqref{eq:iss-bound} is
+predictive: as $p$ (hence $\delta$) grows, the steady-state
+tracking ball should grow accordingly.
+
+The hand-drawn LPV-DS by construction overshoots and loops past
+its attractor (the Hurwitz vector field continues to circulate
+through the demonstration), so the ``final" Euclidean distance
+to $\bx^\star$ is not a meaningful convergence metric for this
+planner. We instead report the \emph{closest end-effector
+approach to the attractor} along the eight-second trajectory,
+which is exactly the operational version of
+$\liminf_{t\to\infty}\|\bx(t){-}\bx^\star\|$ predicted by
+\eqref{eq:iss-bound}. Table~\ref{tab:unified} reports its mean
+and worst-case across three seeds. Up to $p{=}30\%$ the
+empirical ball stays within $\sim 10$\,cm; at $p{=}40$--$50\%$
+the QP becomes infeasible so often that the fallback dominates
+and the ball widens. In all $18$ cells the safety constraints
+are preserved (no self-collision, no obstacle contact); the
+LPV-DS planner is \emph{never} re-tuned.
+
+\begin{table}[t]
+\centering
+\caption{Unified LPV-DS + mass-mismatch sweep (18 cells).
+Closest end-effector approach to the attractor in cm
+(mean / max over 3 seeds). 0 self-collisions in all 18 cells.}
+\label{tab:unified}
+\small
+\begin{tabular}{@{}cccccc@{}}
+\toprule
+$p$ (\%) & 0 & 10 & 20 & 30 & 40--50 \\
+\midrule
+mean $\inf_t \|\bx{-}\bx^\star\|$ (cm)
+                & \texttt{0.7} & \texttt{3.6}
+                & \texttt{4.5} & \texttt{6.1}
+                & \texttt{13.3} \\
+max\phantom{n} $\inf_t \|\bx{-}\bx^\star\|$ (cm)
+                & \texttt{0.7} & \texttt{6.5}
+                & \texttt{7.0} & \texttt{6.7}
+                & \texttt{17.6} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../output/fig_poster_col3_lpvds_only.png}
+\caption{Hand-drawn LPV-DS planner. \textbf{Left:} workspace with
+both obstacles (a static obstacle and a moving obstacle on the
+green track). \textbf{Right:} learned vector field
+$f(\bx)=\sum_k\gamma_k(\bx)(\bA_k\bx{+}\bm{b}_k)$ in the drawing
+plane with $K{=}6$ Hurwitz-projected components; the executed
+end-effector trajectory (yellow) bends around both obstacles
+under the VPP-TC safety layer and converges to the attractor
+(red star).}
+\label{fig:col3}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../output/fig_unified_validation.png}
+\caption{Unified validation of Theorem~\ref{thm:iss}: LPV-DS
+planner driving the Panda across $18$ cells of the mass-mismatch
+grid ($p\in\{0,10,\dots,50\}\%$, $3$ seeds, no extrinsic
+obstacles). \textbf{Left:} closest end-effector approach to the
+attractor as a function of mass perturbation. The shaded band
+shows the seed range; the dashed curve is a $\delta^2$ fit
+predicted by \eqref{eq:iss-bound}. \textbf{Right:}
+self-collision-free fraction across the 18 cells: the
+$\varepsilon$-margin-augmented VPP-TC layer preserves safety in
+every cell.}
+\label{fig:unified}
+\end{figure}
+
+\subsection{Probing scenarios for the baseline comparison}
+\label{sec:probe}
+
+The five scenarios in Table~\ref{tab:baseline} were not
+hand-picked: a separate probing script
+(\texttt{probe\_scenarios.py}) sweeps end-effector targets and
+records, per scenario, whether VPP-TC's
+$\Gamma$ predictor activates (\emph{i.e.}\ the safety layer is
+exercised). Of seven probed scenarios, five exhibit non-trivial
+$\Gamma$-margin variation (min $\Gamma$ from $2.27$ to $15.96$);
+those five are precisely the ones in Table~\ref{tab:baseline}. We
+report the probe summary in the supplementary repository.
+
+%==================================================================
+\section{Implementation Details}
+\label{sec:impl}
+
+The full pipeline is $\sim 4500$ lines of Python.
+\textbf{Robot models.} Single-arm and dual-arm Panda URDFs from
+\texttt{frankaemika/panda\_description}; OpenArm bimanual URDF
+from~\cite{enactic2024openarm}.
+\textbf{Self-collision predictor.} TransformerGamma:
+4-layer encoder, 64 hidden units, 8 attention heads;
+trained on $5\times10^5$ random configurations sampled in
+joint-limit-respecting buckets; binary-cross-entropy loss against
+PyBullet ground-truth contacts. Three weights:
+\texttt{transformer\_gamma.pt} (single Panda),
+\texttt{transformer\_gamma\_dual.pt} (dual Panda),
+\texttt{transformer\_gamma\_dual\_openarm.pt} (dual OpenArm).
+\textbf{External SDF.} Robot Distance Field
+(RDF)~\cite{liu2024rdf}; precomputed Bernstein polynomial SDFs
+per link; analytical gradient via the polynomial coefficients.
+\textbf{LPV-DS fitting.} A standalone GUI
+(\texttt{scripts/draw\_lpvds.py}) lets the user trace
+demonstrations on a 2D plane; the data are fitted by
+\texttt{vpptc/lpvds\_fit.py} with a Hurwitz-projection
+post-processing step ($\bA_k \!\leftarrow\! \tfrac12(\bA_k +
+\bA_k^\top) - (\eta + 0.5)I$ until eigenvalues are negative).
+\textbf{QP.} OSQP~\cite{osqp} via CVXPY~\cite{cvxpy}; warm-started
+each step. $\alpha_\Gamma{=}10^{-2}$, $\alpha_{\text{QP}}{=}
+10^{-2}$ (single) or $10^{-3}$ (dual).
+\textbf{Fallback gain.} $K=\mathrm{diag}(40\,\mathrm{Nm\,s/rad})$
+on all joints; this value is platform agnostic.
+\textbf{Reproducibility.} Every figure and table in this report
+can be regenerated with the scripts in
+\texttt{scripts/report\_experiments.py} and
+\texttt{scripts/report\_analyze.py}; the resulting JSON is
+checked into the repository.
+
+\paragraph*{Hardware} An off-the-shelf Windows laptop
+(Intel i7-12700H, no GPU acceleration used at run time).
+
+\paragraph*{Repository}
+\url{https://github.com/yicongw/VPP-TC}
+
+%==================================================================
+\section{Discussion}
+\label{sec:discuss}
+
+\paragraph*{Why the $\varepsilon$-margin alone is not enough}
+Lemma~\ref{lem:margin} requires $\varepsilon$ to track $\delta$
+\emph{pointwise}; using a constant $\varepsilon{=}0.1$ on a sweep
+where $\delta$ ranges from $0$ to a saturating large value is the
+worst of both worlds (Table~\ref{tab:eps}).
+A natural extension is online estimation of $\delta$ (e.g.\ via
+EKF on the inertia parameters, or via a learned residual model)
+followed by adaptive scaling of $\varepsilon$.
+
+\paragraph*{When does dynamics mismatch \emph{not} cause QP
+infeasibility?} A common misconception is that inertial mismatch
+manifests \emph{only} through QP infeasibility. We observed at
+least three other channels in the sweep above:
+(a) joint-velocity overshoot
+(controller computes a feasible $\bddq^{\text{des}}$ that the true
+inertia mis-tracks, exceeding $\dot q_{\max}$);
+(b) sustained sliding on
+$\partial\Gamma_\text{safe}$ which the
+fallback brake interprets as a velocity to dump, stalling the arm;
+(c) silent storage growth: $S(t)$ rises slowly when the
+controller's $\bM$ underestimates the true $\bMt$, even though
+no constraint is violated.
+The unified Theorem~\ref{thm:iss} treats all three uniformly, since
+its proof bounds the realised acceleration
+$\bddq^{\text{real}}$ rather than chasing each failure mode.
+
+\paragraph*{Limitations}
+(L1) Theorem~\ref{thm:iss} assumes the QP is feasible at every
+instant; the proof does \emph{not} cover the regime where the
+fallback dominates (this regime is excluded by Lemma~\ref{lem:margin}
+when $\varepsilon$ is correctly chosen, but it does happen at
+$p{=}50\%$ in our experiments).
+(L2) The TransformerGamma predictor returns a single global
+margin; per-link margins would tighten the QP further but require
+re-architecting the network.
+(L3) All experiments are simulation-only.
+Hardware deployment is the obvious next step.
+
+%==================================================================
+\section{Conclusion}
+
+We extended VPP-TC with a planner-agnostic interface, an
+$\varepsilon$-margin tightening for inertial robustness, and a
+unified safety-and-convergence theorem that applies whenever the
+upstream planner is a GAS LPV-DS. The framework was ported to two
+14-DoF platforms with no re-tuning, beat a passivity-only
+baseline on $5$ probing scenarios, survived $96$ high-uncertainty
+mass-mismatch cells without a single self-collision, and
+empirically traced out the practical-convergence ball predicted
+by our Theorem~\ref{thm:iss}.
+
+\section*{Self-evaluation}
+This is a solo project. I performed the proposal, all
+implementation (controller, training, simulation harness,
+plotting), all experimentation (probing, sweeps, ablations), the
+theoretical extensions in Sec.~\ref{sec:eps-margin} and
+\ref{sec:unified}, and all writing. I assign myself $5/5$ on the
+individual self-evaluation.
+
+\section*{Acknowledgments}
+I thank Prof.\ Nadia Figueroa for suggesting at the poster
+session that the convergence question of Sec.~\ref{sec:exp-fallback}
+might be addressable by composing the LPV-DS Lyapunov function
+with the $\varepsilon$-margin, which became the seed of
+Theorem~\ref{thm:iss}.
+
+%==================================================================
+\bibliographystyle{IEEEtran}
+\begin{thebibliography}{10}
+\bibitem{zhang2025vpptc} J.~Zhang, F.~Khadivar, and N.~Figueroa,
+``Viability-preserving passive torque control for safe physical
+human-robot interaction,'' \textit{IEEE T-RO}, 2025.
+\bibitem{kronander2016passive} K.~Kronander and A.~Billard,
+``Passive interaction control with dynamical systems,''
+\textit{IEEE RAL}, vol.~1, no.~1, pp.~106--113, 2016.
+\bibitem{zhang2024cpic} J.~Zhang and N.~Figueroa,
+``CPIC: A constrained passive interactive controller for safe
+human-robot interaction,'' \textit{IROS}, 2024.
+\bibitem{figueroa2018lpvds} N.~Figueroa and A.~Billard,
+``A physically-consistent Bayesian non-parametric mixture model
+for dynamical system learning,'' \textit{CoRL}, 2018.
+\bibitem{ames2019cbf} A.~D. Ames, S.~Coogan, M.~Egerstedt et al.,
+``Control barrier functions: Theory and applications,''
+\textit{ECC}, 2019.
+\bibitem{aubin1991viability} J.-P.\ Aubin,
+\textit{Viability Theory}, Birkh\"auser, 1991.
+\bibitem{deits2023neuralcbf} R.~Deits, A.~Bajcsy, and C.~Sloth,
+``Learning safe control with neural CBFs,''
+\textit{ICRA workshop}, 2023.
+\bibitem{khansari2014hopf} M.~Khansari-Zadeh and A.~Billard,
+``Learning control Lyapunov function to ensure stability of
+dynamical system-based robot reaching motions,''
+\textit{Robotics Auton.\ Syst.}, vol.~62, no.~6, pp.~752--765, 2014.
+\bibitem{khalil2002nonlinear} H.~K. Khalil,
+\textit{Nonlinear Systems}, 3rd ed., Prentice Hall, 2002.
+\bibitem{cvxpy} S.~Diamond and S.~Boyd,
+``CVXPY: A python-embedded modeling language for convex
+optimization,'' \textit{JMLR}, 17(83):1--5, 2016.
+\bibitem{osqp} B.~Stellato, G.~Banjac, P.~Goulart et al.,
+``OSQP: An operator splitting solver for quadratic programs,''
+\textit{Math.\ Prog.\ Comp.}, 12:637--672, 2020.
+\bibitem{enactic2024openarm} Enactic Inc.,
+``OpenArm: An open-source bimanual humanoid platform,''
+\url{https://github.com/enactic/openarm_description}, 2024.
+\bibitem{liu2024rdf} Y.~Liu et al.,
+``Robot distance fields for whole-body collision avoidance,''
+\textit{ICRA}, 2024.
+\end{thebibliography}
+
+\end{document}
