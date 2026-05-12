@@ -41,12 +41,11 @@
 \newtheorem{remark}{Remark}
 \theoremstyle{plain}
 
-\title{Safe Reactive Robot Control via Viability-Preserving \\
-Passive Torque Constraints with Certified Convergence \\
-under Bounded Inertial Mismatch}
+\title{Safe Reactive Robot Control via\\ Viability-Preserving
+Passive Torque Control}
 
 \author{\IEEEauthorblockN{Yicong Wang}
-\IEEEauthorblockA{Department of Mechanical Engineering and Applied Mechanics\\
+\IEEEauthorblockA{
 University of Pennsylvania\\
 \texttt{yicongw@seas.upenn.edu}}}
 
@@ -87,6 +86,11 @@ $p\in\{0,10,\dots,50\}\%$ and shows that the
 practical-convergence ball predicted by the ISS analysis is
 observed in simulation; the same theorem already covers the
 linear planner used in the earlier sweeps.
+
+\noindent\textit{Code:}
+\url{https://github.com/yicongw/meam623_final}.\quad
+\textit{Videos:}
+\url{https://drive.google.com/drive/folders/1l37lh3_mBUwYNHC6a13PMtLwFM5gLA2c?usp=drive_link}.
 \end{abstract}
 
 %==================================================================
@@ -601,7 +605,7 @@ $15$   & $28.94$& $64.93$ & $36.11$ & $64.93$ \\
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{../output/fig_poster_col2_timeseries.png}
+\includegraphics[width=\linewidth]{fig_poster_col2_timeseries.png}
 \caption{Time series under $50\%$ mass mismatch with the safety
 fallback enabled (one of the 96 high-regime cells, seed 33).
 \textbf{Top:} self-collision distance and TransformerGamma
@@ -679,7 +683,7 @@ max\phantom{n} $\inf_t \|\bx{-}\bx^\star\|$ (cm)
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{../output/fig_poster_col3_lpvds_only.png}
+\includegraphics[width=\linewidth]{fig_poster_col3_lpvds_only.png}
 \caption{Hand-drawn LPV-DS planner. \textbf{Left:} workspace with
 both obstacles (a static obstacle and a moving obstacle on the
 green track). \textbf{Right:} learned vector field
@@ -693,7 +697,7 @@ under the VPP-TC safety layer and converges to the attractor
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{../output/fig_unified_validation.png}
+\includegraphics[width=\linewidth]{fig_unified_validation.png}
 \caption{Unified validation of Theorem~\ref{thm:iss}: LPV-DS
 planner driving the Panda across $18$ cells of the mass-mismatch
 grid ($p\in\{0,10,\dots,50\}\%$, $3$ seeds, no extrinsic
