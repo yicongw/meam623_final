@@ -29,6 +29,16 @@ output/poster_*
 output/*_preview.*
 output/*_check.*
 output/myplot*.png
+output/slide-*.jpg
+output/slide-*.png
+output/vpptc_fallback_ablation.*
+output/report_experiments.log
+figs/myplot*.png
+
+# Generated misc figures not referenced in report
+output/fig_fallback_*.png
+output/fig_hu_*.png
+output/fig_poster_col3_scene.png
 
 # Large vendored OpenArm meshes (download from upstream, see README)
 assets/urdf/openarm_description/

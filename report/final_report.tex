@@ -149,7 +149,7 @@ which states admit a control trajectory keeping the system inside
 the constraint set indefinitely; CBFs are essentially a smooth
 sub-class of viability boundaries. Recent work has used learned
 neural-network safety predictors as viability
-oracles~\cite{deits2023neuralcbf}, which is the route VPP-TC follows.
+oracles~\cite{so2024neuralcbf}, which is the route VPP-TC follows.
 
 \paragraph*{Passive Interactive Control with hard constraints}
 CPIC~\cite{zhang2024cpic} composes a tank-based passivity layer
@@ -377,7 +377,7 @@ humanoid (14-DoF).
 The single-arm task is a fixed end-effector reach; the dual-arm
 and OpenArm tasks are bilaterally crossing Hopf limit cycles that
 deliberately bring the two end-effectors into the same workspace
-patch~\cite{khansari2014hopf}.
+patch~\cite{khansari2014clf}.
 Table~\ref{tab:platforms} reports control-loop rate,
 inter/self-collision clearance, and tracking metric. The single
 controller maintains $>60$\,Hz on all three platforms; the
@@ -677,7 +677,7 @@ report the probe summary in the supplementary repository.
 The full pipeline is $\sim 4500$ lines of Python.
 \textbf{Robot models.} Single-arm and dual-arm Panda URDFs from
 \texttt{frankaemika/panda\_description}; OpenArm bimanual URDF
-from~\cite{enactic2024openarm}.
+from~\cite{enactic2025openarm}.
 \textbf{Self-collision predictor.} TransformerGamma:
 4-layer encoder, 64 hidden units, 8 attention heads;
 trained on $5\times10^5$ random configurations sampled in
@@ -687,7 +687,7 @@ PyBullet ground-truth contacts. Three weights:
 \texttt{transformer\_gamma\_dual.pt} (dual Panda),
 \texttt{transformer\_gamma\_dual\_openarm.pt} (dual OpenArm).
 \textbf{External SDF.} Robot Distance Field
-(RDF)~\cite{liu2024rdf}; precomputed Bernstein polynomial SDFs
+(RDF)~\cite{li2024rdf}; precomputed Bernstein polynomial SDFs
 per link; analytical gradient via the polynomial coefficients.
 \textbf{LPV-DS fitting.} A standalone GUI
 (\texttt{scripts/draw\_lpvds.py}) lets the user trace
@@ -785,44 +785,61 @@ Theorem~\ref{thm:iss}.
 %==================================================================
 \bibliographystyle{IEEEtran}
 \begin{thebibliography}{10}
-\bibitem{zhang2025vpptc} J.~Zhang, F.~Khadivar, and N.~Figueroa,
-``Viability-preserving passive torque control for safe physical
-human-robot interaction,'' \textit{IEEE T-RO}, 2025.
+\bibitem{zhang2025vpptc} Z.~Zhang, Y.~Wang, Z.~Zhang, T.~Li, and N.~Figueroa,
+``Viability-preserving passive torque control,''
+arXiv preprint arXiv:2510.03367, 2025. Project page:
+\url{https://vpp-tc.github.io/webpage/}.
 \bibitem{kronander2016passive} K.~Kronander and A.~Billard,
 ``Passive interaction control with dynamical systems,''
-\textit{IEEE RAL}, vol.~1, no.~1, pp.~106--113, 2016.
-\bibitem{zhang2024cpic} J.~Zhang and N.~Figueroa,
-``CPIC: A constrained passive interactive controller for safe
-human-robot interaction,'' \textit{IROS}, 2024.
+\textit{IEEE Robot.\ Autom.\ Lett.}, vol.~1, no.~1, pp.~106--113, Jan.\ 2016.
+\bibitem{zhang2024cpic} Z.~Zhang, T.~Li, and N.~Figueroa,
+``Constrained passive interaction control: Leveraging passivity
+and safety for robot manipulators,''
+in \textit{Proc.\ IEEE Int.\ Conf.\ Robot.\ Autom.\ (ICRA)}, 2024.
+arXiv:2403.09853.
 \bibitem{figueroa2018lpvds} N.~Figueroa and A.~Billard,
 ``A physically-consistent Bayesian non-parametric mixture model
-for dynamical system learning,'' \textit{CoRL}, 2018.
-\bibitem{ames2019cbf} A.~D. Ames, S.~Coogan, M.~Egerstedt et al.,
+for dynamical system learning,''
+in \textit{Proc.\ 2nd Conf.\ Robot Learn.\ (CoRL)},
+PMLR vol.~87, 2018, pp.~927--946.
+\bibitem{ames2019cbf} A.~D. Ames, S.~Coogan, M.~Egerstedt,
+G.~Notomista, K.~Sreenath, and P.~Tabuada,
 ``Control barrier functions: Theory and applications,''
-\textit{ECC}, 2019.
+in \textit{Proc.\ 18th Eur.\ Control Conf.\ (ECC)}, 2019,
+pp.~3420--3431.
 \bibitem{aubin1991viability} J.-P.\ Aubin,
-\textit{Viability Theory}, Birkh\"auser, 1991.
-\bibitem{deits2023neuralcbf} R.~Deits, A.~Bajcsy, and C.~Sloth,
-``Learning safe control with neural CBFs,''
-\textit{ICRA workshop}, 2023.
-\bibitem{khansari2014hopf} M.~Khansari-Zadeh and A.~Billard,
+\textit{Viability Theory}, Systems \& Control: Foundations \&
+Applications. Boston, MA: Birkh\"auser, 1991.
+\bibitem{so2024neuralcbf} O.~So, Z.~Serlin, M.~Mann, J.~Gonzales,
+K.~Rutledge, N.~Roy, and C.~Fan,
+``How to train your neural control barrier function: Learning
+safety filters for complex input-constrained systems,''
+in \textit{Proc.\ IEEE Int.\ Conf.\ Robot.\ Autom.\ (ICRA)}, 2024.
+arXiv:2310.15478.
+\bibitem{khansari2014clf} S.~M. Khansari-Zadeh and A.~Billard,
 ``Learning control Lyapunov function to ensure stability of
 dynamical system-based robot reaching motions,''
-\textit{Robotics Auton.\ Syst.}, vol.~62, no.~6, pp.~752--765, 2014.
+\textit{Robot.\ Auton.\ Syst.}, vol.~62, no.~6, pp.~752--765, 2014.
 \bibitem{khalil2002nonlinear} H.~K. Khalil,
-\textit{Nonlinear Systems}, 3rd ed., Prentice Hall, 2002.
+\textit{Nonlinear Systems}, 3rd ed.
+Upper Saddle River, NJ: Prentice Hall, 2002.
 \bibitem{cvxpy} S.~Diamond and S.~Boyd,
-``CVXPY: A python-embedded modeling language for convex
-optimization,'' \textit{JMLR}, 17(83):1--5, 2016.
-\bibitem{osqp} B.~Stellato, G.~Banjac, P.~Goulart et al.,
+``CVXPY: A Python-embedded modeling language for convex
+optimization,''
+\textit{J.~Mach.\ Learn.\ Res.}, vol.~17, no.~83, pp.~1--5, 2016.
+\bibitem{osqp} B.~Stellato, G.~Banjac, P.~Goulart, A.~Bemporad,
+and S.~Boyd,
 ``OSQP: An operator splitting solver for quadratic programs,''
-\textit{Math.\ Prog.\ Comp.}, 12:637--672, 2020.
-\bibitem{enactic2024openarm} Enactic Inc.,
-``OpenArm: An open-source bimanual humanoid platform,''
-\url{https://github.com/enactic/openarm_description}, 2024.
-\bibitem{liu2024rdf} Y.~Liu et al.,
-``Robot distance fields for whole-body collision avoidance,''
-\textit{ICRA}, 2024.
+\textit{Math.\ Program.\ Comput.}, vol.~12, no.~4, pp.~637--672, 2020.
+\bibitem{enactic2025openarm} Enactic, Inc.,
+``OpenArm description: URDF/xacro description files for the
+OpenArm robot system,''
+\url{https://github.com/enactic/openarm_description}, 2025.
+\bibitem{li2024rdf} Y.~Li, Y.~Zhang, A.~Razmjoo, and S.~Calinon,
+``Representing robot geometry as distance fields: Applications
+to whole-body manipulation,''
+in \textit{Proc.\ IEEE Int.\ Conf.\ Robot.\ Autom.\ (ICRA)}, 2024,
+pp.~15351--15357. arXiv:2307.00533.
 \end{thebibliography}
 
 \end{document}

@@ -2,7 +2,7 @@
 
 **Author:** Yicong Wang (`yicongw@seas.upenn.edu`)
 **Course:** MEAM 6230 — Topics in Robotics (Spring 2026), Prof. Nadia Figueroa
-**Base codebase:** [zhang-zizhe/VPP-TC](https://github.com/zhang-zizhe/VPP-TC)
+**Base codebase:** [zhang-zizhe/VPP-TC](https://github.com/zhang-zizhe/VPP-TC) — Zizhe Zhang, Yicong Wang, Zhiquan Zhang, Tianyu Li, Nadia Figueroa, *"Viability-Preserving Passive Torque Control"*, [arXiv:2510.03367](https://arxiv.org/abs/2510.03367), 2025.
 
 ---
 
