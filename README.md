@@ -2,7 +2,7 @@
 
 **Author:** Yicong Wang (`yicongw@seas.upenn.edu`)
 **Course:** MEAM 6230 — Topics in Robotics (Spring 2026), Prof. Nadia Figueroa
-**Base codebase:** [zhang-zizhe/VPP-TC](https://github.com/zhang-zizhe/VPP-TC) (Zhang, Khadivar & Figueroa, T-RO 2025)
+**Base codebase:** [zhang-zizhe/VPP-TC](https://github.com/zhang-zizhe/VPP-TC)
 
 ---
 
