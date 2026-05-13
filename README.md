@@ -116,7 +116,8 @@ git clone https://github.com/enactic/openarm_description.git \
 git clone https://github.com/Yimingli94/RDF.git third_party/rdf
 ```
 
-Tested with Python 3.8.10 on Windows 11 (i7-12700H, no GPU at runtime).
+Tested with Python 3.8.10 on Windows 11
+(AMD Ryzen 7 9800X3D, NVIDIA GeForce RTX 4080 SUPER; no GPU acceleration used at run time).
 PyBullet, CVXPY+OSQP, PyTorch (CPU), NumPy, Matplotlib are the heavy deps.
 
 ---
@@ -124,7 +125,7 @@ PyBullet, CVXPY+OSQP, PyTorch (CPU), NumPy, Matplotlib are the heavy deps.
 ## Reproducing the experiments
 
 Every figure and table number in `report/final_report.tex` can be regenerated
-from the scripts in this repo. Wall-clock estimates are for the i7-12700H above.
+from the scripts in this repo. Wall-clock estimates are for the desktop above.
 
 | Report section | Driver | Output | Time |
 |---|---|---|---|

@@ -17,8 +17,17 @@
 \usepackage{xcolor}
 \usepackage{bm}
 \usepackage{multirow}
+\usepackage{xurl}  
 
-\hypersetup{colorlinks=true, linkcolor=black, citecolor=blue, urlcolor=blue}
+\definecolor{linkpink}{HTML}{C71585}   % VPP-TC paper 那种紫红色
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=blue,
+    urlcolor=linkpink,
+}
+
 
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\bx}{\bm{x}}
@@ -80,18 +89,17 @@ high-uncertainty mass-mismatch cells the safety fallback prevents
 $5$ otherwise-occurring self-collisions, while on a 24-cell
 $\varepsilon$-margin sweep we observe and explain why the
 margin's empirical value is regime dependent.
-A final 18-cell sweep stress-tests Theorem~1 with the more
+A final 17-cell sweep stress-tests Theorem~1 with the more
 demanding mixture planner (LPV-DS) under mass mismatch
 $p\in\{0,10,\dots,50\}\%$ and shows that the
 practical-convergence ball predicted by the ISS analysis is
 observed in simulation; the same theorem already covers the
 linear planner used in the earlier sweeps.
 
-\noindent\textit{Code:}
-\url{https://github.com/yicongw/meam623_final}.\quad
-\textit{Videos:}
-\url{https://drive.google.com/drive/folders/1l37lh3_mBUwYNHC6a13PMtLwFM5gLA2c?usp=drive_link}.
+{\sloppy\noindent\textit{Code:} \url{https://github.com/yicongw/meam623_final}\\
+\textit{Videos:} \url{https://drive.google.com/drive/folders/1l37lh3_mBUwYNHC6a13PMtLwFM5gLA2c?usp=drive_link}\par}
 \end{abstract}
+
 
 %==================================================================
 \section{Introduction}
@@ -120,6 +128,16 @@ position-velocity state space and converting their boundaries into
 cheap acceleration-level (and hence torque-level) bounds inside a
 small QP, with a strictly dissipative fallback whenever those
 bounds become infeasible.
+
+\paragraph*{Goal} The goal of this project is to broaden VPP-TC
+into a planner-agnostic, theoretically certified, multi-platform
+safe-control framework: (i) decouple the safety layer from the
+specific upstream planner so that any GAS dynamical system can
+drive it; (ii) make the viability bounds robust to inertial model
+mismatch with a quantitative margin; and (iii) prove that, under
+this margin, safety \emph{and} practical convergence to the
+planner's attractor hold simultaneously. The three contributions
+below operationalise these three sub-goals.
 
 \paragraph*{Contributions} This project investigates three
 extensions of VPP-TC, all situated within the dynamical-systems
@@ -287,9 +305,9 @@ $\bm{r}$ a small residual) into the true plant
 \eqref{eq:dyn-true} yields the realised acceleration
 \begin{align}
     \bddq^{\text{real}}
-        &= \bMt^{-1}\!\bigl(\btau^* - \bht\bigr)
-         = \bM^{-1}\!\bigl(\bI + \bMt^{-1}\Delta\bM\bigr)^{-1}
-            \bigl(\btau^* - \bh + (\bh-\bht)\bigr) \notag\\
+        &= \bMt^{-1}\bigl(\btau^* - \bht\bigr) \notag \\
+        &= \bM^{-1}\bigl(\bI + \Delta\bM\,\bM^{-1}\bigr)^{-1}
+            \bigl[(\btau^* - \bh) + (\bh-\bht)\bigr] \notag \\
         &= \bddq^{\text{des}} + \bm{e}(\bq,\bdq,\delta),
 \end{align}
 where $\norm{\bm{e}} \le c_1\delta\,\norm{\bddq^{\text{des}}}
@@ -311,11 +329,14 @@ $\varepsilon\!\ge\!0$:
 \end{equation}
 \begin{lemma}[Margin sufficiency]
 \label{lem:margin}
-If $\varepsilon \ge \delta\bigl(1 + c_2\norm{\bdq}^2/
+If $\varepsilon \ge \delta\bigl(c_1 + c_2\norm{\bdq}^2/
                               \norm{\bddq^{\max}}\bigr)$
-holds pointwise, then the realised acceleration $\bddq^{\text{real}}$
-satisfies the original (un-tightened) bounds, hence the viability
-set is forward invariant under the true dynamics.
+holds pointwise (with $c_1, c_2$ the constants of the
+preceding error bound, and using $\norm{\bddq^{\text{des}}}\le
+\norm{\bddq^{\max}}$ to absorb the $c_1$ term), then the realised
+acceleration $\bddq^{\text{real}}$ satisfies the original
+(un-tightened) bounds, hence the viability set is forward
+invariant under the true dynamics.
 \end{lemma}
 
 The proof is by direct substitution of the bound on $\bm{e}$ and
@@ -344,6 +365,11 @@ end-effector tracking error satisfies
     \;\le\; \frac{c_3 \delta^2}{\alpha\,\lambda_{\min}(\bP)}.
     \label{eq:iss-bound}
 \end{equation}
+Equivalently, taking square roots,
+$\limsup_{t\to\infty}\norm{\bx(t)-\bx^\star}
+ \le \sqrt{c_3/(\alpha\,\lambda_{\min}(\bP))}\,\delta$,
+so the practical-convergence ball scales \emph{linearly} with the
+mismatch level $\delta$ when measured in raw distance units.
 \end{theorem}
 
 \noindent\emph{Sketch.} Under Lemma~\ref{lem:margin} the QP is
@@ -491,7 +517,9 @@ self-collision constraints disabled. Five reach scenarios were
 selected by an automatic search to expose the difference
 (Sec.~\ref{sec:probe}).
 Across $5/5$ scenarios VPP-TC remained self-collision-free
-(min $d_{\text{sc}} = 3.6$\,cm in the worst case), while the
+(min $d_{\text{sc}} = 0.9$\,cm in the worst case, on
+\emph{base\_top}; still well above PyBullet's contact-resolver
+floor), while the
 passivity-only baseline self-collided in $3/5$ scenarios
 (\emph{under\_arm}, \emph{under\_arm\_hi}, \emph{base\_top}).
 Mean final tracking error was $0.84$\,cm for VPP-TC vs.\
@@ -584,7 +612,10 @@ $\varepsilon$; we leave this to future work.
 \caption{$\varepsilon$-margin ablation (24 cells:
 $p\!\times\!\varepsilon\!\times\!\text{seed}$).
 $\bar d_f$ = mean final dist (cm), $\bar v$ = mean
-$\dot q$-overshoot (rad/s), $0$ self-collisions in all 24 cells.}
+$\dot q$-overshoot (rad/s); the $\bar v\!=\!64.93$ entries at
+$p{=}15\%$ reflect the simulator's joint-velocity clamp firing
+on $2/3$ seeds once the nominal QP loses feasibility.
+No PyBullet-detected self-contacts in any of the $24$ cells.}
 \label{tab:eps}
 \small
 \begin{tabular}{@{}lcccc@{}}
@@ -606,14 +637,14 @@ $15$   & $28.94$& $64.93$ & $36.11$ & $64.93$ \\
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{fig_poster_col2_timeseries.png}
-\caption{Time series under $50\%$ mass mismatch with the safety
-fallback enabled (one of the 96 high-regime cells, seed 33).
-\textbf{Top:} self-collision distance and TransformerGamma
-margin remain positive throughout. \textbf{Middle:} the soft
-fallback fires intermittently (gray bands) once the QP becomes
-infeasible. \textbf{Bottom:} the storage function
-$S(t)=\tfrac12\bdq^\top\bM\bdq+\lambda V_{\text{pot}}$ stays
-bounded; passivity is preserved.}
+\caption{Min self-collision distance vs.\ time at $20\%$
+link-mass perturbation (seed 33). \textbf{Default VPP-TC} (with
+the dissipative fallback) keeps a ${\sim}6$\,cm self-collision
+margin throughout, while the \textbf{ablation} (same controller,
+fallback removed) self-collides at $t \approx 1.4$\,s once the
+nominal QP loses feasibility. The fallback is what keeps the
+system safe under inertial mismatch when the QP becomes
+infeasible.}
 \label{fig:col2}
 \end{figure}
 
@@ -631,7 +662,9 @@ practical-convergence ball. This experiment \emph{stress-tests}
 the same theorem with the more demanding mixture planner: we
 replace the linear attractor with the hand-drawn $K{=}6$ LPV-DS
 \eqref{eq:lpvds} and re-run the mass-mismatch sweep on
-$p\in\{0,10,20,30,40,50\}\%$, three seeds (18 cells total). The
+$p\in\{0,10,20,30,40,50\}\%$, three seeds per $p$ where available
+(17 cells in total; one $p{=}50\%$ seed was dropped due to
+incomplete logging). The
 upstream Lyapunov function $V$ is now common-quadratic across
 $K$ Hurwitz components \cite{figueroa2018lpvds}, so the bound
 \eqref{eq:iss-bound} remains predictive: as $p$ (hence $\delta$)
@@ -654,15 +687,15 @@ $\liminf_{t\to\infty}\|\bx(t){-}\bx^\star\|$ predicted by
 and worst-case across three seeds. Up to $p{=}30\%$ the
 empirical ball stays within $\sim 10$\,cm; at $p{=}40$--$50\%$
 the QP becomes infeasible so often that the fallback dominates
-and the ball widens. In all $18$ cells the safety constraints
+and the ball widens. In all $17$ cells the safety constraints
 are preserved (no self-collision, no obstacle contact); the
 LPV-DS planner is \emph{never} re-tuned.
 
 \begin{table}[t]
 \centering
-\caption{Unified LPV-DS + mass-mismatch sweep (18 cells).
+\caption{Unified LPV-DS + mass-mismatch sweep (17 cells).
 Closest end-effector approach to the attractor in cm
-(mean / max over 3 seeds). 0 self-collisions in all 18 cells.}
+(mean / max over 3 seeds). 0 self-collisions in all 17 cells.}
 \label{tab:unified}
 \small
 \begin{tabular}{@{}cccccc@{}}
@@ -688,10 +721,10 @@ max\phantom{n} $\inf_t \|\bx{-}\bx^\star\|$ (cm)
 both obstacles (a static obstacle and a moving obstacle on the
 green track). \textbf{Right:} learned vector field
 $f(\bx)=\sum_k\gamma_k(\bx)(\bA_k\bx{+}\bm{b}_k)$ in the drawing
-plane with $K{=}6$ Hurwitz-projected components; the executed
-end-effector trajectory (yellow) bends around both obstacles
-under the VPP-TC safety layer and converges to the attractor
-(red star).}
+plane with $K{=}6$ Hurwitz-projected components (drawn demos in
+yellow); the executed end-effector trajectory (red) bends around
+both obstacles under the VPP-TC safety layer and converges to the
+attractor (green star).}
 \label{fig:col3}
 \end{figure}
 
@@ -699,42 +732,52 @@ under the VPP-TC safety layer and converges to the attractor
 \centering
 \includegraphics[width=\linewidth]{fig_unified_validation.png}
 \caption{Unified validation of Theorem~\ref{thm:iss}: LPV-DS
-planner driving the Panda across $18$ cells of the mass-mismatch
-grid ($p\in\{0,10,\dots,50\}\%$, $3$ seeds, no extrinsic
-obstacles). \textbf{Left:} closest end-effector approach to the
-attractor as a function of mass perturbation. The shaded band
-shows the seed range; the dashed curve is a $\delta^2$ fit
-predicted by \eqref{eq:iss-bound}. \textbf{Right:}
-self-collision-free fraction across the 18 cells: the
-$\varepsilon$-margin-augmented VPP-TC layer preserves safety in
-every cell.}
+planner driving the Panda across $17$ cells of the mass-mismatch
+grid ($p\in\{0,10,\dots,50\}\%$, three seeds per $p$ where
+available, no extrinsic obstacles). The plot shows the closest
+end-effector approach to the attractor as a function of mass
+perturbation; the shaded band is the seed range and the dashed
+line is the practical-convergence envelope predicted by
+\eqref{eq:iss-bound} (linear in $\delta$ in the raw-distance
+plot). The $\varepsilon$-margin-augmented VPP-TC layer also
+preserves safety in every cell ($17/17$ self-collision-free,
+annotated in-panel).}
 \label{fig:unified}
 \end{figure}
 
 \subsection{Probing scenarios for the baseline comparison}
 \label{sec:probe}
 
-The five scenarios in Table~\ref{tab:baseline} were not
-hand-picked: a separate probing script
-(\texttt{probe\_scenarios.py}) sweeps end-effector targets and
-records, per scenario, whether VPP-TC's
-$\Gamma$ predictor activates (\emph{i.e.}\ the safety layer is
-exercised). Of seven probed scenarios, five exhibit non-trivial
-$\Gamma$-margin variation (min $\Gamma$ from $2.27$ to $15.96$);
-those five are precisely the ones in Table~\ref{tab:baseline}. We
-report the probe summary in the supplementary repository.
+To avoid hand-picking favourable scenarios, we ran an automatic
+probe (\texttt{probe\_scenarios.py}) sweeping seven candidate
+end-effector targets and recording $\Gamma$-margin statistics.
+Two probed targets emerged as significantly harder than the rest
+(\texttt{near\_base} and \texttt{under\_arm}, with min
+$\Gamma \approx 2.1$ and $2.3$ vs.\ $8$--$18$ for the others);
+these are included verbatim in Table~\ref{tab:baseline}. The
+remaining three table entries (\texttt{under\_arm\_hi},
+\texttt{base\_top}, \texttt{snake}) were constructed by hand to
+expose specific failure modes---high-lift overshoot, base
+intrusion, and sustained crossing motion---that the probe sweep
+did not naturally surface. The full probe summary is in the
+supplementary repository.
 
 %==================================================================
 \section{Implementation Details}
 \label{sec:impl}
 
-The full pipeline is $\sim 4500$ lines of Python.
+The full pipeline is ${\sim}12{,}000$ lines of Python (3.8.10
+on Windows~11). All experiments and rollouts run in the
+PyBullet rigid-body simulator;
+plotting is matplotlib; numerical
+backbone is NumPy.
 \textbf{Robot models.} Single-arm and dual-arm Panda URDFs from
 \texttt{frankaemika/panda\_description}; OpenArm bimanual URDF
 from~\cite{enactic2025openarm}.
 \textbf{Self-collision predictor.} TransformerGamma:
-4-layer encoder, 64 hidden units, 8 attention heads;
-trained on $5\times10^5$ random configurations sampled in
+4-layer encoder, 64 hidden units, 2 attention heads;
+trained on $10^5$--$10^7$ random configurations (per topology)
+sampled in
 joint-limit-respecting buckets; binary-cross-entropy loss against
 PyBullet ground-truth contacts. Three weights:
 \texttt{transformer\_gamma.pt} (single Panda),
@@ -752,19 +795,20 @@ post-processing step ($\bA_k \!\leftarrow\! \tfrac12(\bA_k +
 \textbf{QP.} OSQP~\cite{osqp} via CVXPY~\cite{cvxpy}; warm-started
 each step. $\alpha_\Gamma{=}10^{-2}$, $\alpha_{\text{QP}}{=}
 10^{-2}$ (single) or $10^{-3}$ (dual).
-\textbf{Fallback gain.} $K=\mathrm{diag}(40\,\mathrm{Nm\,s/rad})$
-on all joints; this value is platform agnostic.
+\textbf{Fallback gain.} $K=5\,\mathrm{Nm\,s/rad}\cdot\bm{I}$
+(\emph{i.e.}\ a scalar damping of $5$ applied uniformly to every
+joint); this value is platform agnostic.
 \textbf{Reproducibility.} Every figure and table in this report
 can be regenerated with the scripts in
 \texttt{scripts/report\_experiments.py} and
 \texttt{scripts/report\_analyze.py}; the resulting JSON is
 checked into the repository.
 
-\paragraph*{Hardware} An off-the-shelf Windows laptop
-(Intel i7-12700H, no GPU acceleration used at run time).
+\paragraph*{Hardware} An off-the-shelf Windows desktop
+(AMD Ryzen 7 9800X3D, NVIDIA GeForce RTX 4080 SUPER; no GPU acceleration used at run time).
 
 \paragraph*{Repository}
-\url{https://github.com/yicongw/VPP-TC}
+\url{https://github.com/yicongw/meam623_final}
 
 %==================================================================
 \section{Discussion}
@@ -809,17 +853,77 @@ re-architecting the network.
 Hardware deployment is the obvious next step.
 
 %==================================================================
-\section{Conclusion}
+\section{Conclusions and Lessons Learned}
+\label{sec:conclusion}
 
-We extended VPP-TC with a planner-agnostic interface, an
-$\varepsilon$-margin tightening for inertial robustness, and a
-unified safety-and-convergence theorem that applies whenever the
-upstream planner is a GAS LPV-DS. The framework was ported to two
-14-DoF platforms with no re-tuning, beat a passivity-only
-baseline on $5$ probing scenarios, survived $96$ high-uncertainty
-mass-mismatch cells without a single self-collision, and
-empirically traced out the practical-convergence ball predicted
-by our Theorem~\ref{thm:iss}.
+\paragraph*{Summary} We extended VPP-TC with a planner-agnostic
+interface, an $\varepsilon$-margin tightening for inertial
+robustness, and a unified safety-and-convergence theorem that
+applies whenever the upstream planner admits a quadratic Lyapunov
+function---covering both the original VPP-TC linear attractor and
+any Hurwitz-projected LPV-DS as special cases. The framework was
+ported to two 14-DoF platforms with no re-tuning, beat a
+passivity-only baseline on $5$ reach scenarios, kept the $48$
+fallback-enabled high-uncertainty mass-mismatch cells fully
+self-collision-free (vs.\ $5$ self-collisions in the matched
+$48$-cell no-fallback ablation), and empirically traced out the
+practical-convergence ball predicted by our
+Theorem~\ref{thm:iss}.
+
+\paragraph*{What worked} (W1) The QP-with-acceleration-bounds
+abstraction is genuinely platform-agnostic: porting from
+single-arm Panda to dual-arm Panda and to the 14-DoF OpenArm
+required only a new URDF and a re-trained TransformerGamma weight
+file, with zero changes to the controller code or its gains
+(Sec.~\ref{sec:exp-porting}). (W2) Decoupling the planner from
+the safety layer made it trivial to drop in an LPV-DS in place
+of the linear attractor; the safety guarantees survived the swap
+intact (Sec.~\ref{sec:exp-unified}). (W3) The unified ISS framing
+(Theorem~\ref{thm:iss}) ended up cleaner than the constant-$\varepsilon$
+attempt because it bounds the realised acceleration uniformly,
+which absorbs all three failure channels of
+Sec.~\ref{sec:discuss} (overshoot, sliding, silent storage growth)
+in a single proof.
+
+\paragraph*{What did not work, and why} (D1) A \emph{constant}
+$\varepsilon$ is empirically helpful only in a narrow mismatch
+regime ($p\!\le\!30\%$); past that, the saturating fallback
+dominates regardless (Table~\ref{tab:eps}). The reason is exactly
+what Lemma~\ref{lem:margin} predicts: the sufficient
+$\varepsilon$ scales with $\delta$ pointwise, so a fixed
+$\varepsilon$ is necessarily too loose at small $\delta$ and too
+tight at large $\delta$. This negative result is what motivated
+us to develop Theorem~\ref{thm:iss} as the main C2 contribution
+rather than just publishing the $\varepsilon$ table.
+(D2) The empirical practical-convergence ball is far smaller than
+the conservative ISS envelope drawn in Fig.~\ref{fig:unified}.
+The bound is structurally correct but loose---typical of ISS
+analyses---and a tighter constant would require pulling the QP
+constraint geometry into the Lyapunov derivative rather than
+upper-bounding by $\norm{\bddq^{\text{des}}-\bddq^{\text{real}}}$.
+(D3) The TransformerGamma surrogate disagreed with PyBullet's
+\texttt{getContactPoints} at the highest mismatch level
+($p{=}50\%$): the network reported $\Gamma{<}0$ in $4/6$ cells
+while the simulator reported zero contacts. We trust the
+simulator and report no self-collisions, but the disagreement
+flags that the surrogate's safe set is conservative under
+distribution shift.
+
+\paragraph*{Future work} (F1) Online estimation of the mismatch
+level $\delta$ (e.g., recursive least-squares on the inertia
+parameters, or a learned residual-dynamics model) so that
+$\varepsilon$ can be scaled adaptively, addressing D1.
+(F2) A per-link $\Gamma$ predictor instead of a single global
+margin; this would tighten the QP and reduce the conservatism
+that drove the gap in D2.
+(F3) Hardware deployment on a physical Panda or OpenArm; all
+results here are simulation-only, and real contact dynamics
+will exercise the passivity layer in ways PyBullet's contact
+model does not.
+(F4) A wider planner library---DMPs, neural-ODE planners, and
+contact-rich LPV-DS variants---to test how far the
+``planner-agnostic'' claim generalises beyond the two GAS
+families we tried.
 
 \section*{Self-evaluation}
 This is a solo project. I performed the proposal, all
@@ -830,11 +934,10 @@ theoretical extensions in Sec.~\ref{sec:eps-margin} and
 individual self-evaluation.
 
 \section*{Acknowledgments}
-I thank Prof.\ Nadia Figueroa for suggesting at the poster
-session that the convergence question of Sec.~\ref{sec:exp-fallback}
-might be addressable by composing the LPV-DS Lyapunov function
-with the $\varepsilon$-margin, which became the seed of
-Theorem~\ref{thm:iss}.
+I thank Prof.\ Nadia Figueroa for her feedback at the poster
+symposium and for offering such an outstanding course, and the
+course teaching assistants for their thoughtful answers and
+dedicated work throughout the semester.
 
 %==================================================================
 \bibliographystyle{IEEEtran}
